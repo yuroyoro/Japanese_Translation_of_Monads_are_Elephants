@@ -1,767 +1,559 @@
+「モナドは象だ」 Part4
+========================================================================
 
 Until you experience an adult elephant first hand you won't really understand just how big they can be. If monads are elephants then so far in this series of articles I've only presented baby elephants like List and Option. But now it's time to see a full grown adult pachyderm. As a bonus, this one will even do a bit of circus magic.
 
-大人の象を直接見るまでは本当に象がどれだけ大きいのか理解したことにはなりません。
-
-モナドがもし象であるならこの連載ではまだListとOptionのような幼い象を紹介しただけです。
-
+大人の象を直接見るまでは、本当に象がどれだけ大きいのか理解したことにはなりません。
+モナドを象に例えると、この連載ではまだListとOptionのような幼い象を紹介したにすぎません。
 しかし機は熟しました。大人の象を見ていきましょう。ボーナスとして少しサーカスマジックもさせます。
 
 
-Functional Programming and IO(関数型プログラミングとIO)
+関数型プログラミングとIO
+------------------------------------------------------------------------
+
+関数型プログラミングには、参照透過性という概念があります。参照透過性は、ある関数を同じ引数で呼び出した結果は、いつどこで呼び出そうとも同じ結果になる、ということを意味します。参照透明な関数は、そうでない関数よりもより簡単に扱えてデバッグしやすいものになります。[#referential_transparency]_
+
+参照透過性を達成できない分野がひとつあります。それはIOです。
+コンソールから一行読み出すreadLine関数を何回か呼び出しても、それぞれユーザーが朝食になにを食べたかによって異なる文字列を返すかも知れません。ネットワークへパケットを送ることは、送信が成功するかわかりません。
+
+しかし、参照透明性を保つために完全にIOを取り除くことはできません。IOを行わないプログラムは、単に複雑な方法でCPUを回しているにすぎないからです。
+
+この連載のトピックから、 モナドは参照透明なIOを行うための手段だと思うかも知れません。とりあえずは、単純な原則から構築してみようと思います。文字列をコンソールから読み書きする問題を考えてみます。この問題の解決方法は、同じようにファイルやネットワークのような任意のIOにも拡張して適用することができるからです。
+
+もちろん、参照透過なIOがScalaに置いて重要であるとは思わなくても構いません。純粋に関数的な参照透明が、ただひとうの真実の道であると押しつける訳でもありません。ここではモナドについて話をしているのであって、IOモナドを説明することが、他のモナドがどのように働くかについて説明しやすいから例にあげているだけです。
 
 
-In functional programming there's a concept called referential transparency. Referential transparency means you can call a particular function anywhere and any time and the same arguments will always give the same results. As you might imagine, a referentially transparent function is easier to use and debug than one that isn't.
+カップの中の世界
+------------------------------------------------------------------------
 
-関数型プログラミングにおいて参照透過性という概念があります。
+コンソールから文字列を読み出すことは、参照透過ではありません。readLine関数はユーザーの状態に依存し、「ユーザー」は関数の引数ではないからです。ファイルを読み込む関数はファイルシステムの状態に依存しますし、Webページを読み出す関数は対象のWebサーバーやインターネット、ローカルネットワークの状態に依存します。同様に、出力を行う関数も同じような依存性を持っています。
 
-参照透過性はある関数を同じ引数でいつどこで呼び出したとしても常に同じ結果になるという意味です。
+これは全て、全世界の状態を表すWorldStateというクラスを用意して、全てのIO関数の引数と戻り値をこのWorldState型にすれば話は終わります。しかし、残念ながら世界は広大です。WorldStateを書こうと試みても、メモリ不足でコンパイラがクラッシュするという結果を迎えるだけです。なので、全世界をモデル化するよりはもう小さい単位で試してみましょう。ちょっとしたサーカスマジックが出てきましたよ。
 
-想像のとおり、参照透過である関数はそうでない関数よりも使いやすくデバックしやすいものになります。
-
-
-There's one area where referential transparency would seem impossible to achieve: IO. Several calls to the same readLine console function may result in any number of different strings depending on things like what the user ate for breakfast. Sending a network packet may end in successful delivery or it might not.
-
-参照透過性を達成できない領域が1つあります。それはIOです。
-
-同じコンソールを1行読み出す関数を何回か呼び出すとユーザーが朝食に何を食べたかのようなことに依存して異なる文字列が返ってくるかもしれません。
-
-ネットワークパケットを送ることは送信に成功したかそうでないかの結果になります。
+この手品は、世界のいくつかの側面だけをモデル化して、残りはWorldStateが知っているように装います。このWorldStateには、いくつかの役に立つ側面があります。
 
 
-But we can't get rid of IO just to accomplish referential transparency. A program without IO is just a complicated way to make your CPU hot.
+- 世界の状態は、IO関数の間で変化する
+- 成果の状態は、そのまま取り扱うしかない。新しい世界を作りだすような、(val coolWorldState = new WorldState(){def jamesIsBillionaire = true})のような事はできない。
+- 世界はどんな瞬間でも厳密にひとつの状態に定まる
 
-しかし、参照透過性を達成するためにIOを取り除くことはできません。IOなしのプログラミングは単にCPIを熱くさせる複雑な方法でしかありません。
-
-
-You might guess that monads provide a solution for referentially transparent IO given the topic of this series but I'm going to work my way up from some simple principles. I'll solve the problem for reading and writing strings on the console but the same solution can be extended to arbitrary kinds of IO like file and network.
-
-この連載のトピックを鑑みてモナドは参照透過性のあるIOのための解決方法を提供するものと推測しているかもしれませんが、いくつかの単純な原則から築き上げようと思います。
-
-コンソールから読み書きするために問題を解決しようとしますが、同じ解決方法はファイルやネットワークのような任意の種類のIOにも拡張できます。
+3つめの特性は、少しトリッキーなので、まずは特性1と2から考えましょう。
 
 
-Of course, you may not think that referentially transparent IO is terribly important in Scala. I'm not here to preach the one true way of purely functional referential transparency. I'm here to talk about monads and it just so happens that the IO monad is very illustrative of how several monads work.
-
-もちろん、参照透過であるIOがScalaにおいてとても重要であるというこは考えなくてもかまいません。
-
-私は純粋に関数的な参照透過性の1つの真実の手段を説こうとしているわけではありません。
-
-モナドについて話そうとしており、IOモナドがいくつかのモナドがどのように動作しているかについてとても説明に役立つのでそうしているだけです。
-
-
-The World In a Cup(カップの中の世界)
-
-
-Reading a string from the console wasn't referentially transparent because readLine depends on the state of the user and "user" isn't one of its parameters. A file reading function would depend on the state of the file system. A function that reads a web page would depend on the state of the target web server, the Internet, and the local network. Equivalent output functions have similar dependencies.
-
-コンソールから文字列を読み出すことは参照透過ではありません。なぜなら1行読みだすことはユーザーの状態に依存し、「ユーザー」はその関数の引数ではないからです。
-
-ファイルを読み出す関数はファイルシステムの状態に依存します。
-
-ウェブページを読み出す関数は対象となるウェブサーバーやインターネット、ローカルネットワークの状態に依存します。
-
-同様に出力する関数も同じような依存性があります。
-
-
-All this could be summed up by creating a class called WorldState and making it both a parameter and a result for all IO functions. Unfortunately, the world is a big place. My first attempt to write a WorldState resulted in a compiler crash as it ran out of memory. So instead I'll try for something a bit smaller than modeling the whole universe. That's where a bit of circus magic comes in.
-
-これらはすべてWorldStateというクラスを作りすべてのIO関数がパラメータと戻り値の両方ともWorldStateとなるようにすれば話は終わります。
-
-不幸なことに、世界は広いです。WorldStateを書くという最初の目論みはアウトオブメモリーでコンパイラがクラッシュするという結果になります。
-
-ゆえに代わりに全世界をモデル化することよりも少し小さい何かを試してみましょう。
-
-サーカスマジックが出てきました。
-
-
-The slight-of-hand I'll use is to model only a few aspects of the world and just pretend WorldState knows about the rest of the world. Here are some aspects that would be useful
-
-世界のいくつかの面ををモデル化し、WorldStateが世界の残りをしるように装うためだけに手品を使います。いくつか役に立つ見地があります。
-
-
-jyukutyoコメント
-
-slight-of-handはsleight of handのタイポ？マジックと手品だし。
-
-
-
-The state of the world changes between IO functions.
-The world's state is what it is. You can't just create new ones whenever you want (val coolWorldState = new WorldState(){def jamesIsBillionaire = true}).
-The world is in exactly one state at any moment in time.
-
-世界の状態はIO関数間で変わる。
-世界の状態はそのままのものである。val coolWorldState = new WorldState(){def jamesIsBillionaire = true}のようなことを望んだとしても新しい世界は作れない。
-世界はどんな瞬間でも厳密に1つの状態である。
-
-Property 3 is a bit tricky so let's deal with properties 1 and 2 first.
-
-特性3は少しトリッキーなのでまず特性1と2から考えてみましょう。
-
-
-Here's a rough sketch for property 1
 
 特性1のラフスケッチです。
 
-//file RTConsole.scala
-object RTConsole_v1 {
-  def getString(state: WorldState) =
-    (state.nextState, Console.readLine)
-  def putString(state: WorldState, s: String) =
-    (state.nextState, Console.print(s) )
-}
-getString and putString use functions defined in scala.Console as raw primitive functions. They take a world state and return a tuple consisting of a new world state and the result of the primitive IO.
+.. code-block:: scala
 
-getStringとputStringは低レベルなプリミティブ関数としてscala.Consoleに定義されている関数を使います。世界の状態を引数にとり、世界の新しい状態とプリミティブなIOの結果をで構成されたタプルを返します。
+  //file RTConsole.scala
+  object RTConsole_v1 {
+    def getString(state: WorldState) =
+      (state.nextState, Console.readLine)
 
-
-Here's how I'll implement property 2
-
-特性2を実装しました。
-
-//file RTIO.scala
-sealed trait WorldState{def nextState:WorldState}
-
-abstract class IOApplication_v1 {
-  private class WorldStateImpl(id:BigInt)
-      extends WorldState {
-    def nextState = new WorldStateImpl(id + 1)
+    def putString(state: WorldState, s: String) =
+      (state.nextState, Console.print(s) )
   }
-  final def main(args:Array[String]):Unit = {
-    iomain(args, new WorldStateImpl(0))
+
+getStringとputStringは、scala.Consoleオブジェクトに定義されている低レベルなプリミティブ関数を用います。これらは、世界の状態を引数で受け取って、新しい世界の状態とプリミティブなIOの結果からなるタプルを返します。
+
+ここで、特性2を実装しました。
+
+.. code-block:: scala
+
+  //file RTIO.scala
+  sealed trait WorldState{def nextState:WorldState}
+
+  abstract class IOApplication_v1 {
+    private class WorldStateImpl(id:BigInt) extends WorldState {
+      def nextState = new WorldStateImpl(id + 1)
+    }
+
+    final def main(args:Array[String]):Unit = {
+      iomain(args, new WorldStateImpl(0))
+    }
+
+    def iomain( args:Array[String], startState:WorldState):(WorldState, _)
   }
-  def iomain(
-      args:Array[String],
-      startState:WorldState):(WorldState, _)
-}
-WorldState is a sealed trait; it can only be extended within the same file. IOApplication defines the only implementation privately so nobody else can instantiate it. IOApplication also defines a main function that can't be overridden and calls a function named iomain that must be implemented in a subclass. All of this is plumbing that is meant to be hidden from programmers that use the IO library.
 
-WorldStateはtraitにします。継承できるのは同じファイルにあるものだけです。
+WorldState型は、seald traitとします。sealed指定されているので、同じファイル内に定義されているクラスしかWorldStateを継承できなくなります。IOApplicationは(WorldStateの)唯一の実装をprivateで定義するため、他の誰もがWorldStateをインスタンス化することはできません。IOApplicationでは、サブクラスで必ず実装する必要のある抽象メソッドiomain関数と、それを呼び出すmain関数(finalなのでオーバライドはできません)が定義されています。これらの定義はすべて、このIOライブラリを利用するプログラマから何を行っているかを隠蔽するための配管と言えます。
 
-IOApplicationはその実装だけをプライベートで定義します。ゆえに誰もインスタンス化することはできません。
-
-IOApplicationはまたオーバーライドできず、サブクラスで必ず実装しなければならないiomain関数を呼び出すものであるmain関数を定義します。
-
-これらはすべてIOライブラリを使うプログラマから隠蔽するための配管です。
+これで、Hello worldはこのようになります。
 
 
-Here's what hello world looks like given all this
+.. code-block:: scala
 
-次のようなhello worldがあります。
+  // file HelloWorld.scala
+  class HelloWorld_v1 extends IOApplication_v1 {
+    import RTConsole_v1._
 
-// file HelloWorld.scala
-class HelloWorld_v1 extends IOApplication_v1 {
-  import RTConsole_v1._
-  def iomain(
-        args:Array[String],
-        startState:WorldState) =
-    putString(startState, "Hello world")
-}
-
-
-
-
-
-
-
-
-
-That Darn Property 3(最悪の特性3)
-
-The 3rd property said that the world can only be in one state at any given moment in time. I haven't solved that one yet and here's why it's a problem
-
-3番目の特性は世界はあらゆる瞬間でも1つの状態にだけあるということを言っています。
-
-それはまだ解決できていません。なぜなら問題があるからです。
-
-class Evil_v1 extends IOApplication_v1 {
-  import RTConsole_v1._
-  def iomain(
-      args:Array[String],
-      startState:WorldState) = {
-    val (stateA, a) = getString(startState)
-    val (stateB, b) = getString(startState)
-    assert(a == b)
-    (startState, b)
+    def iomain( args:Array[String], startState:WorldState) =
+      putString(startState, "Hello world")
   }
-}
-Here I've called getString twice with the same inputs. If the code was referentially transparent then the result, a and b, should be the same but of course they won't be unless the user types the same thing twice. The problem is that "startState" is visible at the same time as the other world states stateA and stateB.
 
-同じ入力でgetStringを2回呼び出しています。もしこのコードが参照透過であるなら結果であるaとbが同一であるべきですが、同じことを2回入力しない限りもちろんそうはなりません。
+最悪の特性3
+------------------------------------------------------------------------
 
-問題は「startState」が世界の異なる状態であるstateAとstateBとして同時に可視化されていることです。
+3つめの特性は、世界はあらゆる瞬間でひとつの状態だけである、と言っています。これは、まだ解決できていません。 なぜなら問題があるからです。
 
+.. code-block:: scala
 
-Inside Out(裏返す)
+  class Evil_v1 extends IOApplication_v1 {
+    import RTConsole_v1._
 
-
-As a first step towards a solution, I'm going to turn everything inside out. Instead of iomain being a function from WorldState to WorldState, iomain will return such a function and the main driver will execute it. Here's the code
-
-解決への第1歩として、すべてを裏返してみます。
-
-iomainをWorldStateからWorldStateを返す関数とする代わりに、iomainはそのような関数を返すようにし、mainはそれを実行するようにします。コードはこうです。
-
-//file RTConsole.scala
-object RTConsole_v2 {
-  def getString = {state:WorldState =>
-    (state.nextState, Console.readLine)}
-  def putString(s: String) = {state: WorldState =>
-    (state.nextState, Console.print(s))}
-}
-getString and putString no longer get or put a string - instead they each return a new function that's "waiting" to be executed once a WorldState is provided.
-
-getStringとputStringはもはや文字列をgetやputしません。代わりにひとたびWorldStateが与えられると実行を「待つ」新しい関数を毎回返します。
-
-//file RTIO.scala
-sealed trait WorldState{def nextState:WorldState}
-
-abstract class IOApplication_v2 {
-  private class WorldStateImpl(id:BigInt)
-      extends WorldState {
-    def nextState = new WorldStateImpl(id + 1)
-  }
-  final def main(args:Array[String]):Unit = {
-    val ioAction = iomain(args)
-    ioAction(new WorldStateImpl(0));
-  }
-  def iomain(args:Array[String]):
-    WorldState => (WorldState, _)
-}
-IOApplication's main driver calls iomain to get the function it will execute, then executes that function with an initial WorldState. HelloWorld doesn't change too much except it no longer takes a WorldState.
-
-IOApplicationのmain関数は実行する関数を取得するためにiomainを呼び出します。それから内部のWorldStateとともに州の関数を実行します。
-
-HelloWorldはもはやWorldStateを引数にしないこと以外ほとんど変更しません。
-
-//file HelloWorld.scala
-class HelloWorld_v2 extends IOApplication_v2 {
-  import RTConsole_v2._
-  def iomain(args:Array[String]) =
-    putString("Hello world")
-}
-At first glance we seem to have solved our problem because WorldState is nowhere to be found in HelloWorld. But it turns out it's just been buried a bit.
-
-一見問題を解決したように見えます。なぜならWorldStateはHelloWorldのどこにも見つからないからです。
-
-しかし、単に隠されているだけだとわかります。
-
-
-Oh That Darn Property 3(ああ、最悪の特性3)
-
-class Evil_v2 extends IOApplication_v2 {
-  import RTConsole_v2._
-  def iomain(args:Array[String]) = {
-    {startState:WorldState =>
-      val (statea, a) = getString(startState)
-      val (stateb, b) = getString(startState)
+    def iomain( args:Array[String], startState:WorldState) = {
+      val (stateA, a) = getString(startState)
+      val (stateB, b) = getString(startState)
       assert(a == b)
       (startState, b)
     }
   }
-}
-Evil creates exactly the kind of function that iomain is supposed to return but once again things are broken. As long as the programmer can create arbitrary IO functions he or she can see through the WorldState trick.
 
-Evilはiomainが戻すと改訂してる関数を正確に作成していますが、またしても物事は壊れています。プログラマが自由にIO関数を作成する限り、その人はWorldStateのトリックをIO関数を通じて見れるからです。
+ここで、getStringを同じ引数で2回呼び出しています。もしこのgetString関数が参照透過でならば、それぞれの結果のaとbは等しくなるべきですが、当然のことながらユーザーが2回同じ入力を行わない限りそうはなりません。この問題は、「startState」が、それぞれ異なる世界の状態であるstateAとstateBとして同時に見えているからです。
 
 
-Property 3 Squashed For Good(特性3はよいもののために押しつぶされる)
+Inside Out
+------------------------------------------------------------------------
 
+解決への第1歩として、すべてを裏返してみます。 iomainをWorldStateを取ってWorldStateを返す関数とする代わりに、iomainはそのような関数オブジェクトを返すようにし、mainはiomainが返した関数オブジェクトを実行するようにします。コードはこうなります。
 
-All we need to do is prevent the programmer from creating arbitrary functions with the right signature. Um...we need to do what now?
+.. code-block:: scala
 
-我々に必要なものはプログラマが正しいシグネチャで自由に関数を作れないようにすることだけです。うーん、今何をする必要があるでしょう？
+  //file RTConsole.scala
+  object RTConsole_v2 {
+    def getString = {state:WorldState => (state.nextState, Console.readLine)}
 
-
-Okay, as we saw with WorldState it's easy to prevent programmers from creating subclasses. So let's turn our function signature into a trait.
-
-さて、WorldStateを見てきてサブクラスを作成できないようにすることは簡単です。ゆえに関数のシグネチャをtraitに変えてみましょう。
-
-sealed trait IOAction[+A] extends
-  Function1[WorldState, (WorldState, A)]
-
-private class SimpleAction[+A](
-   expression: => A) extends IOAction[A]...
-jyukutyoコメント
-
-「sealed」はクラスに設定できる修飾詞です。
-* sealedとされたクラスは、同一ファイル内のクラスからは継承できますが、別ファイル内で定義されたクラスでは継承できません。
-[Scala
-
-Unlike WorldState we do need to create IOAction instances. For example, getString and putString are in a separate file but they would need to create new IOActions. We just need them to do so safely. It's a bit of a dilemma until we realize that getString and putString have two separate pieces: the piece that does the primitive IO and the piece that turns the input world state into the next world state. A bit of a factory method might help keep things clean, too.
-
-WorldStateと異なりIOActionインスタンスを生成する必要があります。たとえば、getStringとputStringは別のファイルにありますが新しいIOActionを生成する必要があるでしょう。
-
-我々は安全にそれをする必要があるだけです。我々がgetStringとputStringが2つの別のものだと理解しない限り少しジレンマがあります。
-
-プリミティブなIOをするものと入力した世界の状態を次の世界の状態に変えるものです。
-
-少しのファクトリメソッドがものごとを整理する手助けになるでしょう。
-
-//file RTIO.scala
-sealed trait IOAction_v3[+A] extends
-  Function1[WorldState, (WorldState, A)]
-
-object IOAction_v3 {
-  def apply[A](expression: => A):IOAction_v3[A] =
-    new SimpleAction(expression)
-
-  private class SimpleAction [+A](
-      expression: => A) extends IOAction_v3[A] {
-    def apply(state:WorldState) =
-      (state.nextState, expression)
+    def putString(s: String) = {state: WorldState => (state.nextState, Console.print(s))}
   }
-}
 
-sealed trait WorldState{def nextState:WorldState}
-
-abstract class IOApplication_v3 {
-  private class WorldStateImpl(id:BigInt)
-      extends WorldState {
-    def nextState = new WorldStateImpl(id + 1)
-  }
-  final def main(args:Array[String]):Unit = {
-    val ioAction = iomain(args)
-    ioAction(new WorldStateImpl(0));
-  }
-  def iomain(args:Array[String]):IOAction_v3[_]
-}
-The IOAction object is just a nice factory to create SimpleActions. SimpleAction's constructor takes a lazy expression as an argument, hence the "=> A" annotation. That expression won't be evaluated until SimpleAction's apply method is called. To call SimpleAction's apply method, a WorldState must be passed in. What comes out is a tuple with the new WorldState and the result of the expression.
-
-IOActionオブジェクトはSimpleActionを生成する単なるファクトリです。
-
-SimpleActionのコンストラクタは遅延評価の式を引数に取ります。それゆえ「=> A」の注釈となります。
-
-この式はSimpleActionのapplyメソッドが呼び出されるまで評価されません。SimpleActionのapplyメソッドを呼び出すためには、WorldStateが渡されなければなりません。結果は新しいWorldStateと式の結果のタプルです。
+getString and putString no longer get or put a string - instead they each return a new function that's "waiting" to be executed once a WorldState is provided.
+getStringとputStringは、もはや文字列をget/putしません。かわりに、WorldStateが渡されるまで実行を「待つ」関数を、毎回作り出して返します。
 
 
+.. code-block:: scala
 
-jyukutyoコメント
+  //file RTIO.scala
+  sealed trait WorldState{def nextState:WorldState}
 
-「:」と型名の間に「=>」を入れることで、遅延評価渡し、すなわち無評価で実引数を渡すこともできる
-Scala4階：関数
+  abstract class IOApplication_v2 {
 
-Here's what our IO methods look like now
-
-今IOメソッドは次のようになります。
-
-//file RTConsole.scala
-object RTConsole_v3 {
-  def getString = IOAction_v3(Console.readLine)
-  def putString(s: String) =
-    IOAction_v3(Console.print(s))
-}
-
-jyukutyoコメント
-
-applyは特殊なメソッド。IOAction_v3(Console.readLine)の呼び出しはobject IOAction_v3のapplyメソッド呼び出しとなる。
-
-applyメソッドを使うと，Array(...)の様に，返り値を持った関数の様にも使える．
-object Length {
-def apply(s: String): int = s.length
-}
-println(Length("Foo"))
-とすれば，3が帰ってくる．Length.apply()とLength()が等価．
-利点は簡単で，importすれば，objectを関数代わりに使えるという事．ユーティリティメソッド代わりにできるかな．
-航海日誌%282007-09-08%29
-applyについて詳しい説明とサンプルはScalaのAdvanced Exampleを写経する(7)-custom 'apply/update' - Fight the Future じゅくのblogへ。
-
-
-And finally our HelloWorld class doesn't change a bit
-
-結局HelloWorldクラスは少しも変わっていません。
-
-class HelloWorld_v3 extends IOApplication_v3 {
-  import RTConsole_v3._
-  def iomain(args:Array[String]) =
-    putString("Hello world")
-}
-A little thought shows that there's no way to create an Evil IOApplication now. A programmer simply has no access to a WorldState. It has become totally sealed away. The main driver will only pass a WorldState to an IOAction's apply method, and we can't create arbitrary IOAction subclasses with custom definitions of apply.
-
-ちょっとした見解として、今Evil IOApplicationを生成する手段はありません。
-
-プログラマは単純にWorldStateへアクセスできません。すべて隠蔽されています。
-
-main関数はWorldStateをIOActionのapplyメソッドに渡すだけであり、独自のapplyを定義した任意のIOActionのサブクラスを作成することはできません。
-
-
-Unfortunately, we've got a combining problem. We can't combine multiple IOActions so we can't do something as simple as "What's your name", Bob, "Hello Bob."
-
-不幸なことに、結びついた問題があります。複数のIOActionを組み合わせることができないため、「名前は何ですが」「ボブです」「やあボブ」のような単純なことができません。
-
-
-Hmmmm, IOAction is a container for an expression and monads are containers. IOAction needs to be combined and monads are combinable. Maybe, just maybe...
-
-んー、IOActionは式のためのンテナであり、モナドはコンテナです。
-
-IOActionは組み合わせる必要があり、モナドは組み合わせ可能です。そうですね、もしかしたら。。。
-
-
-
-
-
-
-
-
-
-
-
-Ladies and Gentleman I Present the Mighty IO Monad(みなさん、すばらしいIOモナドを紹介します)
-
-
-The IOAction.apply factory method takes an expression of type A and returns an IOAction[A]. It sure looks like "unit." It's not, but it's close enough for now. And if we knew what flatMap was for this monad then the monad laws would tell us how to create map using it and unit. But what's flatMap going to be? The signature needs to look like def flatMap[B](f: A=>IOAction[B]):IOAction[B]. But what does it do?
-
-IOActionのファクトリメソッドapplyは引数にA型の式をとりIOAction[A]を返します。たしかに「unit」のように見えます、そうではないのですが、今はだいたい同じでいいです。
-
-もしflatMapがこのモナドのためにすることを知っているならモナド則は我々にそれとunitを使ってマップを作成する方法を教えてくれます。
-
-しかし何がflatMapであるべきでしょう？シグネチャはdef flatMap[B](f: A=>IOAction[B]):IOAction[B]のようなものを必要とします。しかし、それは何をするのでしょう？
-
-
-What we want it to do is chain an action to a function that returns an action and when activated causes the two actions to occur in order. In other words, getString.flatMap{y => putString(y)} should result in a new IOAction monad that, when activated, first activates the getString action then does the action that putString returns. Let's give it a whirl.
-
-それにやらせたいことはアクションを返す関数のための連鎖したアクションであり、活性化したとき2つのアクションを順に実行するものです。言い換えると、getString.flatMap{y => putString(y)}は新しいIOActionモナドとなるべきであり、活性化されると最初にgetStringアクションを活性化しそれからputStringが返すアクションを実行します。試してみましょう。
-
-//file RTIO.scala
-sealed abstract class IOAction_v4[+A] extends
-    Function1[WorldState, (WorldState, A)] {
-  def map[B](f:A => B):IOAction_v4[B] =
-    flatMap {x => IOAction_v4(f(x))}
-  def flatMap[B](f:A => IOAction_v4[B]):IOAction_v4[B]=
-    new ChainedAction(this, f)
-
-  private class ChainedAction[+A, B](
-      action1: IOAction_v4[B],
-      f: B => IOAction_v4[A]) extends IOAction_v4[A] {
-    def apply(state1:WorldState) = {
-      val (state2, intermediateResult) =
-        action1(state1);
-      val action2 = f(intermediateResult)
-      action2(state2)
+    private class WorldStateImpl(id:BigInt) extends WorldState {
+      def nextState = new WorldStateImpl(id + 1)
     }
-  }
-}
 
-object IOAction_v4 {
-  def apply[A](expression: => A):IOAction_v4[A] =
-    new SimpleAction(expression)
-
-  private class SimpleAction[+A](expression: => A)
-      extends IOAction_v4[A] {
-    def apply(state:WorldState) =
-      (state.nextState, expression)
-  }
-}
-
-// the rest remains the same
-sealed trait WorldState{def nextState:WorldState}
-
-abstract class IOApplication_v4 {
-  private class WorldStateImpl(id:BigInt) ...
-
-The IOAction factory and SimpleAction remain the same. The IOAction class gets the monad methods. Per the monad laws, map is just defined in terms of flatMap and what we're using as unit for now. flatMap defers all the hard work to a new IOAction implementation called ChainedAction.
-
-IOActionのファクトリとSimpleActionは変わっていません。IOActionはモナドメソッドを加えました。モナド則に従って、mapは単にflatMapとさしあたりunitとして使っているものを利用して実装しています。flatMapはChainedActionという新しいIOActionの実装への難しい責務を任せています。
-
-
-The trick in ChainedAction is its apply method. First it calls action1 with the first world state. This results in a second world state and an intermediate result. The function it was chained to needs that result and in return the function generates another action: action2. action2 is called with the second world state and the tuple that come out is the end result. Remember that none of this will happen until the main driver passes in an initial WorldState object.
-
-ChainedActionにおけるトリックはそのapplyメソッドです。初めaction1を1番目の世界の状態で呼び出します。
-
-これは2番目の世界の状態と中間結果が結果となります。それがつなぐ関数は結果を必要とし、戻り値として他のアクションであるaction2を生成します。
-
-action2は2番目の席あの状態とともに呼び出し、出てくるタプルを最終結果とします。
-
-内部的なWorldStateオブジェクトをmain関数に渡さない限りこのどれもが起こらないことを覚えておいてください。
-
-
-A Test Drive(テスト駆動)
-
-
-At some point you may have wondered why getString and putString weren't renamed to something like createGetStringAction/createPutStringAction since that's in fact what they do. For an answer, look at what happens when we stick 'em in our old friend "for".
-
-getStringとputStringがcreateGetStringAction/createPutStringActionのような何かになぜ名前を変更しないのかある時点で不思議に思うかもしれません。
-
-実際それらがやっていることがそうだからです。
-
-object HelloWorld_v4 extends IOApplication_v4 {
-  import RTConsole_v4._
-  def iomain(args:Array[String]) = {
-    for{
-        _ <- putString(
-            "This is an example of the IO monad.");
-        _ <- putString("What's your name?");
-        name <- getString;
-        _ <- putString("Hello " + name)
-    } yield ()
-  }
-}
-It's as if "for" and getString/putString work together to create a mini language just for creating a complex IOActions.
-
-これはまるで「for」とgetString/putStringが複雑なIOActionを作成するためだけにミニ言語を作成しようとともに動いているかのようです。
-
-
-Take a Deep Breath(深呼吸しましょう)
-
-
-Now's a good moment to sum up what we've got. IOApplication is pure plumbing. Users subclass it and create a method called iomain which is called by main. What comes back is an IOAction - which could in fact be a single action or several actions chained together. This IOAction is just "waiting" for a WorldState object before it can do its work. The ChainedAction class is responsible for ensuring that the WorldState is changed and threaded through each chained action in turn.
-
-さて我々が成し遂げたことを総括するいい機会です。IOApplicationは純粋な配管です。
-
-ユーザーがそのサブクラスを作りmainから呼び出されるiomainというメソッドを作成します。
-
-IOActionを言い換えましょう。実際IOActionは単一のアクションでも連結したいくつかのアクションでもあるかもしれません。このIOActionはその作業をする前にWorldStateオブジェクトを「待って」いるだけです。
-
-ChainedActionクラスはWorldStateが順番に各連結したアクションを通じて変更され通されたことを保証する責務があります。
-
-
-getString and putString don't actually get or put Strings as their names might indicate. Instead, they create IOActions. But, since IOAction is a monad we can stick it into a "for" statement and the result looks as if getString/putString really do what they say the do.
-
-getStringとputStringはその名前が指し示すように実際にStringを取得したり設定したりしません。代わりにIOActionを生成します。しかしIOActionはモナドであるため、それを「for」構文に突き通すことができますし結果はまるでgetString/putStringが実際に名前の通りのことをやっているかのように見えます。
-
-
-It's a good start; we've almost got a perfectly good monad in IOAction. We've got two problems. The first is that, because unit changes the world state we're breaking the monad laws slightly (e.g. m flatMap unit === m). That's kinda trivial in this case because it's invisible. But we might as well fix it.
-
-いいスタートです。IOActionにおけるほぼ完璧なできのモナドを手に入れました。問題が2つあります。1つめはunitが世界の状態を変更してしまうのでモナド則を少し破っているということです(たとえばm flatMap unit === m)。この場合見えないことなので取るに足らないことです。しかし、これも対応できるでしょう。
-
-
-The second problem is that, in general, IO can fail and we haven't captured that just yet.
-
-2つめの問題は、一般にIOは失敗し、それをすぐに捉えることができないということです。
-
-
-IO Errors(IOエラー)
-
-
-In monadic terms, failure is represented by a zero. So all we need to do is map the native concept of failure (exceptions) to our monad. At this point I'm going to take a different tack from what I've been doing so far: I'll write one final version of the library with comments inline as I go.
-
-モナド的な見地では、失敗はゼロで表現します。ゆえに必要なことは失敗(例外)の固有の概念をモナドに結びつけるだけです。この点では、これまでやってきたこととは異なる方針をとります。インラインでコメントをつけたこのライブラリの最終バージョンを書きます。
-
-
-The IOAction object remains a convenient module to hold several factories and private implementations (which could be anonymous classes, but it's easier to explain with names). SimpleAction remains the same and IOAction's apply method is a factory for them.
-
-IOActionオブジェクトはいくつかのファクトリとプライベートな実装(それらは無名クラスかもしれませんが、名前で説明する方が簡単です)を保持する便利なモジュールとして残っています。SimpleActionも同様であり、IOActionのapplyメソッドはそれらのファクトリです。
-
-//file RTIO.scala
-object IOAction {
-  private class SimpleAction[+A](expression: => A)
-      extends IOAction[A] {
-    def apply(state:WorldState) =
-      (state.nextState, expression)
-  }
-
-  def apply[A](expression: => A):IOAction[A] =
-    new SimpleAction(expression)
-UnitAction is a class for unit actions - actions that return the specified value but don't change the world state. unit is a factory method for it. It's kind of odd to make a distinction from SimpleAction, but we might as well get in good monad habits now for monads where it does matter.
-
-UnitActionはunitアクションのためのクラスです。unitアクションは指定された値を返すが世界の状態は変更しないアクションです。unitはそれのためのファクトリメソッドです。SimpleActionと区別させることはやや奇妙ですが、その上に我々は今優れたモナドにおけるモナドを重要足らしめているところのものの性質がわかるかもしれません。
-
-  private class UnitAction[+A](value: A)
-      extends IOAction[A] {
-    def apply(state:WorldState) =
-      (state, value)
-  }
-
-  def unit[A](value:A):IOAction[A] =
-    new UnitAction(value)
-FailureAction is a class for our zeros. It's an IOAction that always throws an exception. UserException is one such possible exception. The fail and ioError methods are factory methods for creating zeroes. Fail takes a string and results in an action that will raise a UserException whereas ioError takes an arbitrary exception and results in an action that will throw that exception.
-
-FailureActionはゼロのためのクラスです。それは常に例外をスローするIOActionです。UserExceptionはそういう例外の1つです。failとioErrorメソッドはゼロを生成するファクトリメソッドですioErrorが任意の例外を引数に取りその例外をスローするアクションを返すのに対して、failは文字列を引数に取りUserExceptionを発生させるアクションを返します。
-
-  private class FailureAction(e:Exception)
-      extends IOAction[Nothing] {
-    def apply(state:WorldState) = throw e
-  }
-
-  private class UserException(msg:String)
-    extends Exception(msg)
-
-  def fail(msg:String) =
-    ioError(new UserException(msg))
-  def ioError[A](e:Exception):IOAction[A] =
-    new FailureAction(e)
-}
-IOAction's flatMap, and ChainedAction remain the same. Map changes to actually call the unit method so that it complies with the monad laws.
-
-IOActionのflatMapとChainedActionは変わっていません。mapは実はunitメソッドを呼び出すように変わりました。モナド則を満たすためです。
-
-
-I've also added two bits of convenience: >> and <<. Where flatMap sequences this action with a function that returns an action, >> and << sequence this action with another action.
-
-また便利なものを2つばかり追加しました。>>と<<です。flatMapはアクションを返す関数とともにこのアクションを順序づけるのに対して、>>と<<はこのアクションを他のアクションとともに順序づけます。
-
-
-It's just a question of which result you get back. >>, which can be pronounced "then", creates an action that returns the second result, so 'putString "What's your name" >> getString' creates an action that will display a prompt then return the user's response.
-
-どちらの結果を戻すのかという疑問があります。>>は、「then」と発音しますが、2つ目の結果を返すアクションを生成するので、「putString "What's your name" >> getString」はプロンプトを表示しユーザーのレスポンスを戻すアクションを生成します。
-
-
-Conversely, <<, which can be called "before" creates an action that will return the result from the first action.
-
-逆に、<<は、「before」と呼びますが、最初のアクションから結果を戻すアクションを生成します。
-
-sealed abstract class IOAction[+A]
-    extends Function1[WorldState, (WorldState, A)] {
-  def map[B](f:A => B):IOAction[B] =
-    flatMap {x => IOAction.unit(f(x))}
-  def flatMap[B](f:A => IOAction[B]):IOAction[B]=
-    new ChainedAction(this, f)
-
-  private class ChainedAction[+A, B](
-      action1: IOAction[B],
-      f: B => IOAction[A]) extends IOAction[A] {
-    def apply(state1:WorldState) = {
-      val (state2, intermediateResult) =
-        action1(state1);
-      val action2 = f(intermediateResult)
-      action2(state2)
+    final def main(args:Array[String]):Unit = {
+      val ioAction = iomain(args)
+      ioAction(new WorldStateImpl(0));
     }
+
+    def iomain(args:Array[String]): WorldState => (WorldState, _)
   }
 
-  def >>[B](next: => IOAction[B]):IOAction[B] =
-    for {
-      _ <- this;
-      second <- next
-    } yield second
 
-  def <<[B](next: => IOAction[B]):IOAction[A] =
-    for {
-      first <- this;
-      _ <- next
-    } yield first
-Because we've got a zero now, it's possible to add a filter method by just following the monad laws. But here I've created two forms of filter method. One takes a user specified message to indicate why the filter didn't match whereas the other complies with Scala's required interface and uses a generic error message.
+IOApplicationのmain関数は、実行する関数をiomain関数を呼び出して取得して、初期状態のWorldStateを渡して取得した関数を実行します。先ほどのHelloWorldは、WorldStateを引数に取らないようにする以外の変更は行いません。
 
-今ゼロを得たので、モナド則に従うだけでフィルターメソッドを追加することができます。しかしここで2つの形式のフィルターメソッドを作成しました。1つはフィルターがマッチしなかった理由を示すためにユーザーが指定したメッセージを引数に取りますが、もう1つはSからが必要とするインターフェースを満たし一般的なエラーメッセージを使います。
+.. code-block:: scala
 
-  def filter(
-      p: A => Boolean,
-      msg:String):IOAction[A] =
-    flatMap{x =>
-      if (p(x)) IOAction.unit(x)
-      else IOAction.fail(msg)}
-  def filter(p: A => Boolean):IOAction[A] =
-    filter(p, "Filter mismatch")
-A zero also means we can create a monadic plus. As some infrastructure for creating it, HandlingAction is an action that wraps another action and if that action throws an exception then it sends that exception to a handler function. onError is a factory method for creating HandlingActions. Finally, "or" is the monadic plus. It basically says that if this action fails with an exception then try the alternative action.
+  //file HelloWorld.scala
+  class HelloWorld_v2 extends IOApplication_v2 {
+    import RTConsole_v2._
 
-ゼロはまたモナド的な加算を作成することができるということを意味します。それを作成するためのある基盤として、HandlingActionは他のアクションをラップしそのアクションが例外をスローすればその例外をハンドラーに渡すというアクションです。
+    def iomain(args:Array[String]) = putString("Hello world")
+  }
 
-onErrorはHandlingActionを生成するファクトリメソッドです。最後に、「or」はモナド的な加算です。それは基本的にこのアクションがもし例外とともに失敗すれば代わりのアクションを試すということを述べています。
+HelloWorldの中にWorldStateが見つからなくなったので、一見問題は解決したかのように見えます。 しかし、単に隠されているだけだとわかります。
 
-  private class HandlingAction[+A](
-      action:IOAction[A],
-      handler: Exception => IOAction[A])
-      extends IOAction[A] {
-    def apply(state:WorldState) = {
-      try {
-        action(state)
-      } catch {
-        case e:Exception => handler(e)(state)
+
+ああ、最悪の特性3
+------------------------------------------------------------------------
+
+.. code-block:: scala
+
+  class Evil_v2 extends IOApplication_v2 {
+    import RTConsole_v2._
+
+    def iomain(args:Array[String]) = {
+      {startState:WorldState =>
+        val (statea, a) = getString(startState)
+        val (stateb, b) = getString(startState)
+        assert(a == b)
+        (startState, b)
       }
     }
   }
 
-  def onError[B >: A](
-      handler: Exception => IOAction[B]):
-      IOAction[B] =
-    new HandlingAction(this, handler)
+Evliでは、iomainが正確に期待される関数を返すようになっていますが、未だにこの実装は壊れています。プログラマが任意にIO関数を作成できるようになっている限り、WorldStateが隠蔽されているというトリックが、getStringやputStringを呼び出すことで見破られてしまうからです。
 
-  def or[B >: A](
-      alternative:IOAction[B]):IOAction[B] =
-    this onError {ex => alternative}
-}
+
+Property 3 Squashed For Good(特性3はよいもののために押しつぶされる)
+------------------------------------------------------------------------
+
+プログラマが任意のIO関数を正しいシグニチャで作成できないようにする必要があります。うーん、今何をする必要があるでしょう？
+
+さて、WorldStateで見たように、サブクラスを作成できないようにすることは簡単です。では、関数のシグネチャをtraitに変えてみましょう。
+
+.. code-block:: scala
+
+  sealed trait IOAction[+A] extends Function1[WorldState, (WorldState, A)]
+
+  private class SimpleAction[+A]( expression: => A) extends IOAction[A] ...
+
+
+WorldStateと異なる点は、IOActionのインスタンスを作成できるようにすることです。例えば、getStringとputStringは異なるファイルに存在するかも知れないのですが、そこから安全に新しいIOActionのインスタンスを生成できるようにする必要があるでしょう。ここで、getStringとputStringは異なる2つの部分に分割されていることを理解しない限り、ちょっとしたジレンマに陥ってしまします。getString/putStringは、プリミティブなIOを行う部分と、入力された世界の状態を次の状態に変える部分の2つから成っています。ちょっとしたファクトリーメソッドで物事を整理する手助けをしましょう。
+
+
+.. code-block:: scala
+
+  //file RTIO.scala
+  sealed trait IOAction_v3[+A] extends Function1[WorldState, (WorldState, A)]
+
+  object IOAction_v3 {
+
+    def apply[A](expression: => A):IOAction_v3[A] = new SimpleAction(expression)
+
+    private class SimpleAction [+A]( expression: => A) extends IOAction_v3[A] {
+      def apply(state:WorldState) = (state.nextState, expression)
+    }
+  }
+
+  sealed trait WorldState{def nextState:WorldState}
+
+  abstract class IOApplication_v3 {
+
+    private class WorldStateImpl(id:BigInt) extends WorldState {
+      def nextState = new WorldStateImpl(id + 1)
+    }
+
+    final def main(args:Array[String]):Unit = {
+      val ioAction = iomain(args)
+      ioAction(new WorldStateImpl(0));
+    }
+
+    def iomain(args:Array[String]):IOAction_v3[_]
+  }
+
+
+IOActionオブジェクトはSimpleActionを生成する単なるファクトリです。 SimpleActionのコンストラクタは遅延評価の式を引数に取ります。それゆえ、引数の型は「=> A」と表記されています。[#call_by_name]_ 引数に渡した式は、SimpleActionのapplyメソッド[#apply]_ が呼び出されるまで評価されません。そして、SimpleActionのapplyメソッドにはWorldStateを渡す必要があります。返り値は、新しいWorldStateと、式を評価した結果からなるタプルです。
+
+ここで、IOメソッドは次のようになります。
+
+.. code-block:: scala
+
+  //file RTConsole.scala
+  object RTConsole_v3 {
+
+    def getString = IOAction_v3(Console.readLine)
+    def putString(s: String) = IOAction_v3(Console.print(s))
+  }
+
+
+結局HelloWorldクラスは少しも変わっていません。
+
+.. code-block:: scala
+
+  class HelloWorld_v3 extends IOApplication_v3 {
+    import RTConsole_v3._
+
+    def iomain(args:Array[String]) = putString("Hello world")
+  }
+
+
+これで、前に示した'Evil'なIOApplicationを作る手段はなくなりました。プログラマはWorldStateへアクセスできません。全て完全に隠蔽されています。main関数はWorldStateをIOActionのapplyメソッドに渡すだけになり、独自のapplyを定義したIOActionのサブクラスを任意に作成することはできなくなりました。
+
+不幸なことに、結合に問題があります。複数のIOActionを組み合わせることができないため、 「名前は何ですが」「ボブです」「やあボブ」のような単純なことができません。
+
+んー、IOActionは式のためのコンテナであり、モナドはコンテナです。 IOActionは組み合わせる必要があり、モナドは組み合わせ可能です。そうですね、もしかしたら。。。
+
+
+みなさん、すばらしいIOモナドを紹介します
+------------------------------------------------------------------------
+
+IOActionのファクトリメソッドapplyは、引数にA型の式をとりIOAction[A]型を返します。これは、たしかに「unit」のように見えます。実は違うのですが、今のところは同じものだと思っていいです。
+もし、このモナドにとってflatMapがどのようなものかわかれば、モナド則によりflatMapとunitを使ってmapの定義を導出することができます。
+しかし、flatMapはどうあるべきでしょうか? シグニチャは"def flatMap[B](f: A=>IOAction[B]):IOAction[B]"となりますが、ここで何を行うのしょう?
+
+私たちが今flatMapに望んでいることは、アクションとアクションをつなげた新しい関数を返すことと、呼び出されたときにそのふたつを順番に実行することです。
+言い換えると、"getString.flatMap{y => putString(y)}"は新しいIOActionモナドとなり、呼び出されるとまずgetStringアクションを実行して、putStringが返すアクションを実行します。試してみましょう。
+
+.. code-block:: scala
+
+  //file RTIO.scala
+  sealed abstract class IOAction_v4[+A] extends Function1[WorldState, (WorldState, A)] {
+
+    def map[B](f:A => B):IOAction_v4[B] = flatMap {x => IOAction_v4(f(x))}
+
+    def flatMap[B](f:A => IOAction_v4[B]):IOAction_v4[B] = new ChainedAction(this, f)
+
+    private class ChainedAction[+A, B]( action1: IOAction_v4[B], f: B => IOAction_v4[A])
+      extends IOAction_v4[A] {
+
+      def apply(state1:WorldState) = {
+        val (state2, intermediateResult) = action1(state1)
+        val action2 = f(intermediateResult)
+        action2(state2)
+      }
+    }
+  }
+
+  object IOAction_v4 {
+    def apply[A](expression: => A):IOAction_v4[A] = new SimpleAction(expression)
+
+    private class SimpleAction[+A](expression: => A) extends IOAction_v4[A] {
+
+      def apply(state:WorldState) = (state.nextState, expression)
+    }
+  }
+
+  // the rest remains the same
+  sealed trait WorldState{def nextState:WorldState}
+
+  abstract class IOApplication_v4 {
+    private class WorldStateImpl(id:BigInt) ...
+
+
+IOActionのファクトリとSimpleActionはそのままでです。IOActionには、モナドのメソッドを追加しました。モナド則に従い、mapは単にflatMapと今のところそう見なしているunitを用いて定義しました。flatMapは難しい仕事をChainedActionという新しいIOActionの実装クラスに任せています。
+
+このChainedActionでの仕掛けは、applyメソッドにあります。まず、action1を最初のWorldStateで呼び出します。この返り値は、2つめのWorldStateとA型の中間状態の結果(intermediateResult)からなるタプルです。つぎに、接続したい関数(引数fで受け取ったB => IOApplication_v4[A]型の関数)を、action1から得た中間状態(intermediateResult)を渡して呼び出して、action2を作り出します。このaction2に2番目のWorldState(action1で得られた結果)を渡して呼び出し、返ってきたタプルが、flatMapの最終的な結果になります。最初のWorldStateをmain関数から渡されない限り、何も起こらないということを覚えておいてください。
+
+
+A Test Drive(テスト駆動)
+------------------------------------------------------------------------
+
+どうして、どこかの時点でgetStringとputStringという名前をcreateGetStringAction/createPutStringActionのような何を行うか表しているものに変更しないのか、疑問に思うかもしれません。
+その答えとして、我々の古い友人である「for」にこれらを突き通してみると何が起こるか見てみましょう。
+
+
+.. code-block:: scala
+
+  object HelloWorld_v4 extends IOApplication_v4 {
+    import RTConsole_v4._
+    def iomain(args:Array[String]) = {
+      for{
+             _ <- putString( "This is an example of the IO monad.");
+             _ <- putString("What's your name?");
+          name <- getString;
+             _ <- putString("Hello " + name)
+      } yield ()
+    }
+  }
+
+
+
+まるで、複雑なIOActionを利用するためのミニ言語が「for」とgetString/putStringでできている見えますね。
+
+
+Take a Deep Breath(深呼吸しましょう)
+------------------------------------------------------------------------
+
+さてここで、今まで行ってきたことをまとめてましょう。IOApplicationは(WorldStateを隠蔽するための)純粋な配管として機能します。ユーザーはIOApplicationを継承して、main関数から呼ばれるiomainメソッドを実装します。
+ユーザーがそのサブクラスを作りmainから呼び出されるiomainというメソッドを作成します。そこから何を返すかというと、単体もしくは複数が連結されたIOActionです。このIOActionは、WorldStateが渡されるまで何もせずに「待って」いるだけです。ChainedActionは、連結されたアクションによるWorldStateの変更が、順番に一貫性を持って行われることを保証する責務を持っています。
+
+getString/putStringは、その名前が示すように、実際に文字列を読み書きしません。代わりに、IOActionを作り出します。ですが、IOActionはモナドであるため、それらを「for」で利用すると、まるでgetString/putStringがその名の如く文字列の入出力を行っているかのように見えるのです。
+
+幸先良く、ほぼ完全なモナドとしてのIOActionを用意できました。が、問題が有ります。最初の問題は、unitが世界の状態を変更してしまうので、(例えば m flatMap unit == m のような) モナド則を少し破ってしまっているということです。この場合は隠されているため、些細なことです。が、対応はできます。
+2つめの問題は、一般的にIOは失敗することがあり、今のままではその失敗を補足できないことです。
+
+
+IO Errors(IOエラー)
+------------------------------------------------------------------------
+
+モナド的な意味で、失敗はゼロとして表現されます。今私たちがやりたいことは、失敗(例外)という固有の概念をこのモナドに導入することです。この点に置いては、今までとは異なるやり方で解説します。インラインでコメントをつけた、このライブライの最終バージョンを書こうと思います。
+
+IOActionオブジェクトは、いくつかのファクトリとプライベートな実装(それらは無名クラスかもしれませんが、名前で説明する方が簡単です)を保持する便利なモジュールとして残っています。SimpleActionも同様であり、IOActionのapplyメソッドはそれらのファクトリです。
+
+.. code-block:: scala
+
+  //file RTIO.scala
+  object IOAction {
+
+    private class SimpleAction[+A](expression: => A) extends IOAction[A] {
+      def apply(state:WorldState) = (state.nextState, expression)
+    }
+
+    def apply[A](expression: => A):IOAction[A] = new SimpleAction(expression)
+
+UnitActionは、unitアクションのためのクラスです。unitアクションは、世界の状態は変更しないで、渡された値を返すだけのアクションです。unitはUnitActionのファクトリメソッドです。SimpleActionと区別しているのは少し奇妙に思うかも知れないですが、これによりモナドの性質の優れたところがわかるかもしれません。
+
+.. code-block:: scala
+
+    private class UnitAction[+A](value: A) extends IOAction[A] {
+      def apply(state:WorldState) = (state, value)
+    }
+
+    def unit[A](value:A):IOAction[A] = new UnitAction(value)
+
+
+FailureActionはゼロのためのクラスです。これは、常に例外を送出するIOActionとなります。UserExceptionは起こりえる例外の一種です。failとerrorメソッドは、ゼロを作り出すためのファクトリーメソッドです。failメソッドは文字列を取ってUserExceptionをthrowするIOActionを返すのに対して、ioErrorメソッドは任意の例外を取ってそれをthrowするIOActionを返します。
+
+.. code-block:: scala
+
+    private class FailureAction(e:Exception) extends IOAction[Nothing] {
+      def apply(state:WorldState) = throw e
+    }
+
+    private class UserException(msg:String) extends Exception(msg)
+
+    def fail(msg:String) = ioError(new UserException(msg))
+
+    def ioError[A](e:Exception):IOAction[A] = new FailureAction(e)
+  }
+
+
+IOActionのflatMapとChainedActionは変わっていません。mapメソッドは、モナド則を満たすためにunitメソッドを呼び出すように変わりました。
+また便利なものを2つばかり追加しました。「>>」と「<<」です。flatMapがアクションを返す関数とアクションを順番に結びつけるのに対して、「>>」と「<<」はアクションと他のアクションを順に結びつけます。そこで、「>>」が何を返すのかという疑問があります。「>>」 は"2つめのアクションの結果を返す"アクションを生成するので、 "then"と発音することもできます。ですので、「putString "What's your name" >> getString」はプロンプトを表示しユーザーの入力を返すアクションを生成します。
+逆に、「<<」は"最初のアクションの結果を返す"アクションを返すので、"before"と呼ぶこともできます。
+
+.. code-block:: scala
+
+  sealed abstract class IOAction[+A] extends Function1[WorldState, (WorldState, A)] {
+
+    def map[B](f:A => B):IOAction[B] = flatMap {x => IOAction.unit(f(x))}
+
+    def flatMap[B](f:A => IOAction[B]):IOAction[B] = new ChainedAction(this, f)
+
+    private class ChainedAction[+A, B]( action1: IOAction[B],
+        f: B => IOAction[A]) extends IOAction[A] {
+
+      def apply(state1:WorldState) = {
+        val (state2, intermediateResult) = action1(state1);
+        val action2 = f(intermediateResult)
+        action2(state2)
+      }
+    }
+
+    def >>[B](next: => IOAction[B]):IOAction[B] =
+      for {
+        _      <- this;
+        second <- next
+      } yield second
+
+    def <<[B](next: => IOAction[B]):IOAction[A] =
+      for {
+        first <- this;
+        _     <- next
+      } yield first
+
+
+ゼロを使えるようにしたので、ただモナド則に従うだけでフィルターメソッドを追加できるようになりました。ただし、ここでは2つの形式でフィルターメソッドを作成しています。1つは、なぜフィルターがマッチしなかったかを示すユーザー指定のメッセージを取ります。対して、もう一つは、シグニチャをScalaが一般的に要求する形式にしておき、("Filter mismatch"という)固定の一般的なエラーメッセージを用いるものです。
+
+.. code-block:: scala
+
+    def filter( p: A => Boolean, msg:String):IOAction[A] =
+      flatMap{x => if (p(x)) IOAction.unit(x)
+                   else IOAction.fail(msg)}
+
+    def filter(p: A => Boolean):IOAction[A] =
+      filter(p, "Filter mismatch")
+
+また、ゼロはモナド的な加算を作成できること意味します。そのための基盤として、HandlingActionを用意します。これは、引数に他のアクションとhandler関数をとり、他のアクションをラップして例外が発生したらhandler関数に例外を渡して処理させる、というアクションです。 onErrorメソッドは、HandlingActionを作成するためのファクトリーメソッドです。そして「or」はモナドにおける加算です。ここでは、アクションがもし例外で失敗したら他のアクションを試す、という意味になります。
+
+.. code-block:: scala
+
+    private class HandlingAction[+A]( action:IOAction[A], handler: Exception => IOAction[A])
+      extends IOAction[A] {
+
+      def apply(state:WorldState) = {
+        try {
+          action(state)
+        } catch {
+          case e:Exception => handler(e)(state)
+        }
+      }
+    }
+
+    def onError[B >: A]( handler: Exception => IOAction[B]): IOAction[B] =
+      new HandlingAction(this, handler)
+
+    def or[B >: A]( alternative:IOAction[B]):IOAction[B] =
+      this onError {ex => alternative}
+  }
+
 The final version of IOApplication stays the same
 
-IOApplicationの最終バージョンも変わりません。
+IOApplicationの最終バージョンには変化はありません。
 
-sealed trait WorldState{def nextState:WorldState}
+.. code-block:: scala
 
-abstract class IOApplication {
-  private class WorldStateImpl(id:BigInt)
-      extends WorldState {
-    def nextState = new WorldStateImpl(id + 1)
-  }
-  final def main(args:Array[String]):Unit = {
-    val ioaction = iomain(args)
-    ioaction(new WorldStateImpl(0));
-  }
-  def iomain(args:Array[String]):IOAction[_]
-}
-RTConsole stays mostly the same, but I've added a putLine method as an analog to println. I've also changed getString to be a val. Why not? It's always the same action.
+  sealed trait WorldState{def nextState:WorldState}
 
-RTConsoleはほとんど変わっていませんが、printlnの類似のものとしてputLineメソッドを追加しました。またgetStringをvalへ変えました。なぜ？常に同じアクションだからです。
+  abstract class IOApplication {
 
-//file RTConsole.scala
-object RTConsole {
-  val getString = IOAction(Console.readLine)
-  def putString(s: String) =
-    IOAction(Console.print(s))
-  def putLine(s: String) =
-    IOAction(Console.println(s))
-}
-And now a HelloWorld application to exercise some of this new functionality. sayHello creates an action from a string. If the string is a recognized name then the result is an appropriate (or inappropriate) greeting. Otherwise it's a failure action.
+    private class WorldStateImpl(id:BigInt) extends WorldState {
+      def nextState = new WorldStateImpl(id + 1)
+    }
 
-さあHelloWorldアプリケーションでこの新しい機能性のいくつかを試してみましょう。
+    final def main(args:Array[String]):Unit = {
+      val ioaction = iomain(args)
+      ioaction(new WorldStateImpl(0));
+    }
 
-sayHelloは文字列から空くshんを生成します。もし文字列が名前として認識できるなら結果は適切な(もしくは不適切な)あいさつになります。そうでなければアクションは失敗します。
-
-
-Ask is a convenience method that creates an action that will display a specified string then get one. The >> operator ensures that the action's result will be the result of getString.
-
-askは指定した文字列を表示してそれを取得するアクションを生成する便利なメソッドです。>>演算子はアクションの結果がgetStringの結果であることを確かめます。
-
-
-processsString takes an arbitrary string and, if it's 'quit' then it creates an action that will say goodbye and be done. On any other string sayHello is called. The result is combined with another action using 'or' in case sayHello fails. Either way the action is sequenced with the loop action.
-
-processsStringは任意の文字列を引数に取り、もしそれが「quit」ならさようならを言うアクションを生成します。他の文字列ならsayHelloを呼び出します。結果はsayHelloが失敗した場合「or」を使って他のアクションと組み合わせます。
-
-
-Loop is interesting. It's defined as a val just because it can be - a def would work just as well. So it's not quite a loop in the sense of being a recursive function, but it is a recursive value since it's defined in terms of processString which in turn is defined based on loop.
-
-ループは興味深いです。そうすることができるという理由だけでvalとして定義しています。defと同様に動作します。ゆえに再帰関数であるという意味においては完全にはループではありませんが、再帰的な値であるので今度はループに基づくものとして定義されているprocessStringの見地から定義されます。
-
-
-The iomain function kicks everything off by creating an action that will display an intro then do what the loop action specifies.
-
-iomain関数はイントロを表示しループアクションが指定することを実行するアクションを生成してすべてを開始します。
-
-
-Warning: because of the way the library is implemented this loop will eventually blow the stack. Do not use it in production code. Read the comments to see why.
-
-警告：ライブラリを実装した手段により、このループは最終的にスタックを破壊するかもしれません。プロダクションコードでこれを使わないでください。理由はコメントを読んでみてください。
-
-object HelloWorld extends IOApplication {
-  import IOAction._
-  import RTConsole._
-
-  def sayHello(n:String) = n match {
-    case "Bob" => putLine("Hello, Bob")
-    case "Chuck" => putLine("Hey, Chuck")
-    case "Sarah" => putLine("Helloooo, Sarah")
-    case _ => fail("match exception")
+    def iomain(args:Array[String]):IOAction[_]
   }
 
-  def ask(q:String) =
-    putString(q) >> getString
 
-  def processString(s:String) = s match {
-    case "quit" => putLine("Catch ya later")
-    case _ => (sayHello(s) or
-        putLine(s + ", I don't know you.")) >>
-        loop
+RTConsoleはほとんど変わっていませんが、printlnと似たようなものであるputLineメソッドを追加しました。またgetStringをvalへ変えました。なぜかというと、常に同じアクションだからです。
+
+.. code-block:: scala
+
+  //file RTConsole.scala
+  object RTConsole {
+
+    val getString = IOAction(Console.readLine)
+
+    def putString(s: String) = IOAction(Console.print(s))
+
+    def putLine(s: String) = IOAction(Console.println(s))
   }
 
-  val loop:IOAction[Unit] =
-    for {
-      name <- ask("What's your name? ");
-      _ <- processString(name)
-    } yield ()
 
-  def iomain(args:Array[String]) = {
-    putLine(
-        "This is an example of the IO monad.") >>
-    putLine("Enter a name or 'quit'") >>
-    loop
+では、HelloWorldアプリケーションで、このあたらしい機能を試してみましょう。sayHelloメソッドは文字列からアクションを作成します。文字列が名前として認識できるものであれば、結果は適切な(または不適切な)挨拶を行うアクションになります。そうでなれば失敗するアクションを返します。
+
+askメソッドは、指定した文字列を表示したあと文字列を入力から取得するための便利なメソッドです。「>>」演算子によって、アクションの返り値がgetStringの結果であることが保証されれます。
+
+processStringメソッドは任意の文字列を引数に取ります。"quit"という文字列であればさよならを言うアクションを返します。それ以外なら、sayHelloメソッドを呼び出します。sayHelloが失敗した場合に備えて、結果は「or」によって他のアクションと結合されます。
+
+processsStringは任意の文字列を引数に取り、もしそれが「quit」ならさようならを言うアクションを生成します。他の文字列ならsayHelloを呼び出します。結果はsayHelloが失敗した場合「or」を使って他のアクションと組み合わせます。どちらの場合にせよ、さらにloopアクションに繋がるようになっています。
+
+loopは興味深いことに、 valとして定義されています。defと同様に動作します。 再帰関数であるという意味での完全なループではありませんが、processStringとloopは相互に呼び出し合って定義されているため、再帰的な値として考えることができます。
+
+(訳注:いわゆる相互再帰(トランポリン)に近い形で定義されています。)
+
+iomain関数は、イントロを表示してloopを呼び出すアクションを生成して、アプリケーションを開始します。
+
+
+警告：このライブラリの実装では、ループによって最終的にスタックが破壊される可能性があります。プロダクションコードでこれを使わないでください。理由はコメントを読んでみてください。
+
+.. code-block:: scala
+
+  object HelloWorld extends IOApplication {
+    import IOAction._
+    import RTConsole._
+
+    def sayHello(n:String) = n match {
+      case "Bob"   => putLine("Hello, Bob")
+      case "Chuck" => putLine("Hey, Chuck")
+      case "Sarah" => putLine("Helloooo, Sarah")
+      case _       => fail("match exception")
+    }
+
+    def ask(q:String) = putString(q) >> getString
+
+    def processString(s:String) = s match {
+      case "quit" => putLine("Catch ya later")
+      case _      => (sayHello(s) or putLine(s + ", I don't know you.")) >> loop
+    }
+
+    val loop:IOAction[Unit] =
+      for {
+        name <- ask("What's your name? ");
+        _    <- processString(name)
+      } yield ()
+
+    def iomain(args:Array[String]) = {
+      putLine( "This is an example of the IO monad.") >>
+      putLine("Enter a name or 'quit'") >>
+      loop
+    }
   }
-}
 
 jyukutyoコメント
 
@@ -774,24 +566,21 @@ One Div Zero: Monads are Elephants Part 4
 末尾再帰でない以上、その関数呼び出しから戻ってきた後の処理の情報をスタックに保存するので、再帰が深くなればスタックの使用量が増え、いつかはあふれるということ。
 
 
-Conclusion for Part 4(パート4の結論)
+パート4の結論
+------------------------------------------------------------------------
+
+この記事は、IOモナドを「実行を待つアクションというインスタンス」であることをハッキリとさせるために、「IOAction」と呼びました。 ScalaにおけるIOモナドの実践的な価値を少しわかっていただけたでしょう。それで充分です。ここでは参照透過性について説こうとしているわけではありません。ですが、IOモナドはいかなる意味においても明らかにコレクションでないモナドのもっとも単純な一例です。
+
+IOモナドのインスタンスはコンテナのように見えますが、値の代わりに式を格納します。flatMapとmapは、埋め込まれた式をより複雑な式に変換しています。
+より利便性の高い概念モデルは、IOモナドをインスタンスを一種の計算や関数と見なすことです。flatMapはより複雑な計算をつり出すために関数に計算を適用する、とも考えられます。
 
 
-In this article I've called the IO monad 'IOAction' to make it clear that instances are actions that are waiting to be performed. Many will find the IO monad of little practical value in Scala. That's okay, I'm not here to preach about referential transparency. However, the IO monad is one of the simplest monads that's clearly not a collection in any sense.
+このシリーズの最後に、コンテナと計算モデルを統合する手段を解説しました。しかし私は、モナドがどれだけ役に立つかを、多くのモナド象を使った少し複雑なアプリケーションを見せることで伝えたかったのです。
 
-この記事ではインスタンスが実行を待つアクションであることをはっきりさせるためにIOモナドを「IOAction」と呼びました。ScalaにおけるIOモナドの実践的な価値を少しわかっていただけたでしょう。それで大丈夫です。私はここで参照透過性について説こうとしているわけではありません。しかしながら、IOモナドはいかなる意味においても明らかにコレクションでないモナドのもっとも単純な1つです。
+.. rubric:: 訳注
 
+.. [#referential_transparency] 参照透明ではない関数とは、呼び出し毎に結果が変わる関数です。例えば、ある変数の値をインクリメントして返すような関数は参照透明ではありません。参照透明ではない関数は、副作用を引き起こす可能性を含みます。
 
-Still, instances of the IO monad can be seen as containers. But instead of containing values they contain expressions. flatMap and map in essence turn the embedded expressions into more complex expressions.
+.. [#call_by_name] "=> A"は、call by name(名前渡し)と呼ばれる指定方法で、引数を遅延評価します。通常、foo( bar )という呼び出しではbarが評価された結果をfooの引数として渡しますが、fooメソッドの定義が"def foo( v: => String)"のように定義されていると、barをいわゆる無名関数に包んでfooメソッドに渡します。fooの内部では、barを評価することで結果を任意のタイミングで取り出せるようになります。
 
-まだIOモナドのインスタンスをコンテナとして見るかもしれません。しかし値を格納する代わりにIOモナドは式を格納します。flatMapとmapは本質的に埋め込まれた式をより複雑な式へ変換します。
-
-
-Perhaps a more useful mental model is to see instances of the IO monad as computations or functions. flatMap can be seen as applying a function to the computation to create a more complex computation.
-
-おそらくより役に立つ観念的なモデルはIOモナドのインスタンスを計算や関数としてみることです。flatMapはより複雑な計算を生成するために計算に関数を適用するものとして見ることができます。
-
-
-In the last part of this series I'll cover a way to unify the container and computation models. But first I want to reinforce how useful monads can be by showing an application that uses an elephantine herd of monads to do something a bit more complicated.
-
-この連載の最後のパートではコンテナと計算モデルを統合する手段をカバーします。しかし最初により少し複雑な何かをするためにモナドの象の群れを使ったアプリケーションを見せることによってモナドがどれだけ役に立つのかを述べたいです。
+.. [#apply] "apply"というメソッド名はシンタックスシュガーで、fooObj("bar")というオブジェクトに対するメソッド呼び出しのような書き方で、applyメソッドを呼び出すことができます。ここでは、"IOAction_v3(Console.readLine)"という書き方で"IOAction_v3.apply(Console.readLine)"と同じ結果になります。

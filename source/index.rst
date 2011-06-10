@@ -18,7 +18,7 @@ Monads are Elephants:
   JAMES IRY:ONE DIV ZERO: http://james-iry.blogspot.com
 
 
-訳文は、以下の翻訳をまとめた上で改稿したものです。
+いくつかの訳文は、以下の翻訳を参考にさせてもらいました。
 
   「モナドは象だ」の翻訳まとめ - Fight the Future じゅくのblog
   http://d.hatena.ne.jp/jyukutyo/20081111/1226392144
@@ -31,8 +31,8 @@ Contents:
 
    part1-ja.rst
    part2-ja.rst
-   part1-en.rst
-   part2-en.rst
+   part3-ja.rst
+   part4-ja.rst
 
 Indices and tables
 ==================

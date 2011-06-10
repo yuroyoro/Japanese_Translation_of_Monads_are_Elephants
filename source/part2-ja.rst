@@ -74,9 +74,11 @@ A Little "For"(もう少し「for」を)
 
 .. TODO 色付ける
 
-val qs = ns flatMap {n => os map {o => n * o }}
-val qs = ns flatMap {n => List(n * 4, n * 5)}
-val qs = List(1 * 4, 1 * 5, 2 * 4, 2 * 5
+::
+
+  val qs = ns flatMap {n => os map {o => n * o }}
+  val qs = ns flatMap {n => List(n * 4, n * 5)}
+  val qs = List(1 * 4, 1 * 5, 2 * 4, 2 * 5
 
 
 「さらに式を増やしてみる」
@@ -121,20 +123,22 @@ val qs = List(1 * 4, 1 * 5, 2 * 4, 2 * 5
 
 .. TODO 色付ける
 
-val qs = for (n <- ns; o <- os; p <- ps)
-         yield n * o * p
+::
 
-val qs = ns flatMap {n =>
-         for(o <- os; p <- ps)
-         yield n * o * p}
+  val qs = for (n <- ns; o <- os; p <- ps)
+           yield n * o * p
 
-val qs = ns flatMap {n =>
-         os flatMap {o =>
-         for(p <- ps) yield n * o * p}}
+  val qs = ns flatMap {n =>
+           for(o <- os; p <- ps)
+           yield n * o * p}
 
-val qs = ns flatMap {n =>
-         os flatMap {o =>
-        {ps map {p => n * o * p}}}
+  val qs = ns flatMap {n =>
+           os flatMap {o =>
+           for(p <- ps) yield n * o * p}}
+
+  val qs = ns flatMap {n =>
+           os flatMap {o =>
+          {ps map {p => n * o * p}}}
 
 
 
