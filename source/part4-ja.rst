@@ -1,8 +1,6 @@
 「モナドは象だ」 Part4
 ========================================================================
 
-Until you experience an adult elephant first hand you won't really understand just how big they can be. If monads are elephants then so far in this series of articles I've only presented baby elephants like List and Option. But now it's time to see a full grown adult pachyderm. As a bonus, this one will even do a bit of circus magic.
-
 大人の象を直接見るまでは、本当に象がどれだけ大きいのか理解したことにはなりません。
 モナドを象に例えると、この連載ではまだListとOptionのような幼い象を紹介したにすぎません。
 しかし機は熟しました。大人の象を見ていきましょう。ボーナスとして少しサーカスマジックもさせます。
@@ -125,7 +123,6 @@ Inside Out
     def putString(s: String) = {state: WorldState => (state.nextState, Console.print(s))}
   }
 
-getString and putString no longer get or put a string - instead they each return a new function that's "waiting" to be executed once a WorldState is provided.
 getStringとputStringは、もはや文字列をget/putしません。かわりに、WorldStateが渡されるまで実行を「待つ」関数を、毎回作り出して返します。
 
 
@@ -184,7 +181,7 @@ HelloWorldの中にWorldStateが見つからなくなったので、一見問題
 Evliでは、iomainが正確に期待される関数を返すようになっていますが、未だにこの実装は壊れています。プログラマが任意にIO関数を作成できるようになっている限り、WorldStateが隠蔽されているというトリックが、getStringやputStringを呼び出すことで見破られてしまうからです。
 
 
-Property 3 Squashed For Good(特性3はよいもののために押しつぶされる)
+Property 3 Squashed For Good
 ------------------------------------------------------------------------
 
 プログラマが任意のIO関数を正しいシグニチャで作成できないようにする必要があります。うーん、今何をする必要があるでしょう？
@@ -341,7 +338,7 @@ A Test Drive(テスト駆動)
 まるで、複雑なIOActionを利用するためのミニ言語が「for」とgetString/putStringでできている見えますね。
 
 
-Take a Deep Breath(深呼吸しましょう)
+深呼吸しましょう
 ------------------------------------------------------------------------
 
 さてここで、今まで行ってきたことをまとめてましょう。IOApplicationは(WorldStateを隠蔽するための)純粋な配管として機能します。ユーザーはIOApplicationを継承して、main関数から呼ばれるiomainメソッドを実装します。
@@ -353,7 +350,7 @@ getString/putStringは、その名前が示すように、実際に文字列を�
 2つめの問題は、一般的にIOは失敗することがあり、今のままではその失敗を補足できないことです。
 
 
-IO Errors(IOエラー)
+IO Errors
 ------------------------------------------------------------------------
 
 モナド的な意味で、失敗はゼロとして表現されます。今私たちがやりたいことは、失敗(例外)という固有の概念をこのモナドに導入することです。この点に置いては、今までとは異なるやり方で解説します。インラインでコメントをつけた、このライブライの最終バージョンを書こうと思います。
@@ -515,7 +512,9 @@ processsStringは任意の文字列を引数に取り、もしそれが「quit�
 
 loopは興味深いことに、 valとして定義されています。defと同様に動作します。 再帰関数であるという意味での完全なループではありませんが、processStringとloopは相互に呼び出し合って定義されているため、再帰的な値として考えることができます。
 
-(訳注:いわゆる相互再帰(トランポリン)に近い形で定義されています。)
+.. note::
+
+  (訳注:いわゆる相互再帰(トランポリン)に近い形で定義されています。)
 
 iomain関数は、イントロを表示してloopを呼び出すアクションを生成して、アプリケーションを開始します。
 
@@ -555,15 +554,9 @@ iomain関数は、イントロを表示してloopを呼び出すアクション�
     }
   }
 
-jyukutyoコメント
+.. note::
 
-理由というのはこのコメントだと思う。
-
-As for loop not being tail recursive - well, it can't be. The reason is a bit subtle. Loop isn't quite a normal loop. Instead, ultimately, it's an instance of ChainedAction. That's where the real problem is: as the library is designed ChainedAction's apply method cannot be tail recursive since its tail call must be to some arbitrary IOAction's apply method rather than to its own apply method.
-One Div Zero: Monads are Elephants Part 4
-要は、loopが末尾再帰ではないからというのが理由らしい。ループは単なるループではなくて、結局はChainedActionのインスタンスである。ChainedActionのapplyメソッドは末尾再帰にできない。自身のapplyメソッドではなく任意のIOActionのapplyメソッド呼び出しでなければならない、と。
-
-末尾再帰でない以上、その関数呼び出しから戻ってきた後の処理の情報をスタックに保存するので、再帰が深くなればスタックの使用量が増え、いつかはあふれるということ。
+  (訳注)スタックを破壊する可能性があるというのはloopがprocessStringと相互に新しいアクションのインスタンスを作成しながら呼び出しあう形になるからです。Scalaでは、末尾再帰関数はフラットなwhileループになるようにコンパイル時に最適化されますが、ここではいわゆる相互再帰となっているため、loopの呼び出しが繰り返されるたびに新しいIOAcionインスタンスが作成され、スタックに積まれてゆくことになります。よって、最終的にはStackOverFlowを引き起こします。
 
 
 パート4の結論

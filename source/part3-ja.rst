@@ -16,17 +16,11 @@
 すべてにとって等価である
 ------------------------------------------------------------------------
 
-モナド則について説明を続ける前に、「f(x) ≡ g(x)」のような3重等号をどのような意味で使っているか、少し形式的に説明せねばなりません。
-
-この意味は、数学者が「=」等号で意味することと同じです。ただの「=」を代入と混同しないようにしているだけです。
-
-
+モナド則について説明を続ける前に、「f(x) ≡ g(x)」のような3重等号をどのような意味で使っているか、少し形式的に説明せねばなりません。 この意味は、数学者が「=」等号で意味することと同じです。ただの「=」を代入と混同しないようにしているだけです。
 よって、左辺と右辺が「等価」である式だと言っているわけです。では、「等価」とはどのような意味でしょうか。
 
 初めに、参照の同一(Scalaのeqメソッド)について話しているわけではありません。参照の同一は私の定義を満たすかもしれませんが、必要条件が強すぎます。
-
 次に、偶然正しく実装されていない限り必ずしも==等式を意味していません。
-
 
 この「等価」が意味することは、2つのオブジェクト同士が直接的にしろ間接的にしろ、プリミティブな参照の同一性やハッシュコードをベースにした参照、isInstanceOfなどを使って区別できない、ということです。
 
@@ -35,7 +29,6 @@
 
 
 「等価」についてもう一つ注意することがあります。全ての法則は、暗黙に副作用がないことを前提にしています。
-
 この記事の最後で副作用についてもっと詳しく触れるつもりです。
 
 
@@ -48,11 +41,10 @@
 数学のある分野で、このような法則があることを思い出してください。
 もしaとbとcが有理数であるならかけ算(*)は次の法則に従います。
 
-::
 
-  a * 1 ≡ a
-  a * b ≡ b * a
-  (a * b) * c ≡ a * (b * c)
+- a * 1 ≡ a
+- a * b ≡ b * a
+- (a * b) * c ≡ a * (b * c)
 
 
 たしかに「RationalNumber」のようなクラスを作り*演算子を実装することは簡単です。
@@ -65,9 +57,7 @@
 算術演算のように、興味深い方法でモナドを使えるような「式」を持ちます。
 
 たとえばScalaの「for」記法はこれらの法則に依存した式を使って展開されます。
-
 だから、あなたのクラスがモナド則を破ることは、「for」記法やユーザーが抱く期待を破る可能性があります。
-
 
 前置きはここまでです。モナド則を説明するために、もう1つの風変わりな単語ファンクターから始めます。
 
@@ -93,7 +83,7 @@ mapのシグネチャは次のようなものです。
   }
 
 
-ファンクターの第1法則：同一性 (Identity)
+第1法則：同一性 (Identity)
 _____________________________________________________________________
 
 
@@ -106,20 +96,18 @@ _____________________________________________________________________
 
 これは明らかに、いかなるxに対しても以下の特性を持ちます。
 
-::
+.. code-block:: scala
 
     identity(x) ≡ x
 
 
 これ以上何もしませんが、それがポイントです。(どんな型であっても)その引数を何も変えずに返すだけです。
-
 ゆえにファンクターの第1法則はこうなります。あらゆるファンクターmにとって
 
-::
 
-  F1.  m map identity ≡ m           // or equivalently *
-  F1b. m map {x => identity(x)} ≡ m // or equivalently
-  F1c. m map {x => x} ≡ m
+-  F1.  m map identity ≡ m           // or equivalently *
+-  F1b. m map {x => identity(x)} ≡ m // or equivalently
+-  F1c. m map {x => x} ≡ m
 
 
 言い換えると、何もしないということは何も変えないということになります。すばらしい！
@@ -129,18 +117,16 @@ _____________________________________________________________________
 もし法則に従わないファンクターを作成し、このあとに続くことが真にならないとします。
 なぜこれが混乱することなのか見てみましょう。mはリストを装っているとします。
 
-::
 
-  F1d. for (x <- m) yield x ≡ m
+-  F1d. for (x <- m) yield x ≡ m
 
 第2法則：コンポジション (Composition)
 _____________________________________________________________________
 
 2つ目のファンクター法則は、いくつかの「map」を一緒に組み合わせる方法を定義します。
 
-::
 
-  F2. m map g map f ≡ m map {x => f(g(x))}
+-  F2. m map g map f ≡ m map {x => f(g(x))}
 
 
 これは単に、gでmapした結果をさらにfでmapすると、「gとf」の合成関数でmapする結果と同じである、と言っているだけです。 このコンポジションの法則によって、プログラマは一度にすべてをmapするか、複数回のmapに分けるかを選択できるようになります。
@@ -157,9 +143,8 @@ _____________________________________________________________________
 
 「for」記法では、この法則は次のような見づらいものになります。
 
-::
 
-  F2b. for (y <- (for (x <- m) yield g(x)) yield f(y) ≡ for (x <- m) yield f(g(x))
+-  F2b. for (y <- (for (x <- m) yield g(x)) yield f(y) ≡ for (x <- m) yield f(g(x))
 
 
 
@@ -196,18 +181,16 @@ unitは、このシグネチャを満たしモナド則に従って振る舞う�
 
 このシリーズの一番初めの前置きで、関連をこのように紹介しました。
 
-::
 
-  FM1. m map f ≡ m flatMap {x => unit(f(x))}
+-  FM1. m map f ≡ m flatMap {x => unit(f(x))}
 
 
 この法則は単独ではあまり意味を成しませんが、3つのコンセプト(unit/map/flatMap)の結びつきを作り出します。
 
 この法則は「for」記法を使うと、うまく表現できます。
 
-::
 
-  FM1a. for (x <- m) yield f(x) ≡ for (x <- m; y <- unit(f(x))) yield y
+-  FM1a. for (x <- m) yield f(x) ≡ for (x <- m; y <- unit(f(x))) yield y
 
 
 flattenふたたび
@@ -216,34 +199,30 @@ flattenふたたび
 
 一番最初の記事では、 「flatten」または「join」はモナドM[M[A]]型をM[A]型に変換するようなものと書きましたが、実は正確な記述ではありません。そのときは、flatMapはmapした結果をfalttenするもの言いました。
 
-::
 
-  FL1. m flatMap f ≡ flatten(m map f)
+-  FL1. m flatMap f ≡ flatten(m map f)
 
 
 これにより、非常に単純なflattenの定義を導きだすことができます。
 
-::
 
-  flatten(m map identity) ≡ m flatMap identity // fにidentityを代入
-  FL1a. flatten(m) ≡ m flatMap identity        // by F1
+-  flatten(m map identity) ≡ m flatMap identity // fにidentityを代入
+-  FL1a. flatten(m) ≡ m flatMap identity        // by F1
 
-So flattening m is the same as flatMapping m with the identity function. I won't use the flatten laws in this article as flatten isn't required by Scala but it's a nice concept to keep in your back pocket when flatMap seems too abstract.
 
 ゆえに、mをflattenすることは、mをidentity関数でflatMapすることと同じです。
 Scalaではflattenは必須でないので、この記事ではflattenの法則を使いたくありませんが、flatMapが抽象的に見える場合にそなえて覚えておくとよい概念です。
 
 
 第1のモナド則：同一性(Identity)
-------------------------------------------------------------------------
+_____________________________________________________________________
 
 
 モナド則の最初の、そしてもっとも単純な法則は、モナドの同一性の法則です。
 
-::
 
-  M1.  m flatMap unit ≡ m            // or equivalently
-  M1a. m flatMap {x => unit(x)} ≡ m
+-  M1.  m flatMap unit ≡ m            // or equivalently
+-  M1a. m flatMap {x => unit(x)} ≡ m
 
 
 (0番目の)結合法則が3つの概念をつなげているのに対して、この法則はそのうち2つの関係に焦点を合わせています。 この法則を読み解く1つの方法は、ある意味ではflatMapはunitが行ったことを元に戻しているだけと考えることです。もう1度思い出してほしいのですが、左辺の結果となるオブジェクトは、「m」として同じように振る舞うような、内部的に少し異なるオブジェクトかもしれないのです。
@@ -251,30 +230,26 @@ Scalaではflattenは必須でないので、この記事ではflattenの法則�
 
 そして、この法則と結合法則を使ってファンクターの同一法則を導出することができます。
 
-::
 
-  1. m flatMap {x => unit(x)} ≡ m            // M1a
-  2. m flatMap {x => unit(identity(x))}≡ m   // identity
-  3. F1b. m map {x => identity(x)} ≡ m       // by FM1
+1. m flatMap {x => unit(x)} ≡ m            // M1a
+2. m flatMap {x => unit(identity(x))}≡ m   // identity
+3. F1b. m map {x => identity(x)} ≡ m       // by FM1
 
 
 
 同じ導出は逆からでも有効です。「for」表記法で表せば、モナドの同一法則はとても明白です。
 
-::
 
-  M1c. for (x <- m; y <- unit(x)) yield y ≡ m
+-  M1c. for (x <- m; y <- unit(x)) yield y ≡ m
 
 
 第2のモナド則：Unit
-------------------------------------------------------------------------
+_____________________________________________________________________
 
 モナドの同一性に対するある種の逆法則もあります。
 
-::
-
-  M2.  unit(x) flatMap f ≡ f(x) // or equivalently
-  M2a. unit(x) flatMap {y => f(y)} ≡ f(x)
+-  M2.  unit(x) flatMap f ≡ f(x) // or equivalently
+-  M2a. unit(x) flatMap {y => f(y)} ≡ f(x)
 
 
 この法則は基本的に次のようなことを言っています。f(x)を算出できるようにするために、unit(x)は何らかの手段でxを保存しておく必要がある、ということです。これは、ハッキリ言ってモナドはある意味コンテナ型であるといっています（ただし、これはモナドがコレクションであるという意味ではありません!)。
@@ -282,38 +257,33 @@ Scalaではflattenは必須でないので、この記事ではflattenの法則�
 
 「for」記法では、unit法則はこうなります。
 
-::
 
-  M2b. for (y <- unit(x); result <- f(y)) yield result ≡ f(x)
+-  M2b. for (y <- unit(x); result <- f(y)) yield result ≡ f(x)
 
 
 この法則は、unitがmapとどのように関連するかを暗示しています。
 
-::
 
-  1. unit(x) map f ≡ unit(x) map f                     // no, really, it does!
-  2. unit(x) map f ≡ unit(x) flatMap {y => unit(f(y))} // by FM1
-  3. M2c. unit(x) map f ≡ unit(f(x))                   // by M2a
+1. unit(x) map f ≡ unit(x) map f                     // no, really, it does!
+2. unit(x) map f ≡ unit(x) flatMap {y => unit(f(y))} // by FM1
+3. M2c. unit(x) map f ≡ unit(f(x))                   // by M2a
 
 
 言い換えると、もし単一引数xでモナドのインスタンスを生成して、fでmapすると、xにfを適用した結果からモナドを生成したときと同じ結果を得るべきです。
 
 for表記法では、
 
-::
-
-  M2d. for (y <- unit(x)) yield f(y) ≡ unit(f(x))
+-  M2d. for (y <- unit(x)) yield f(y) ≡ unit(f(x))
 
 第3のモナド則：コンポジション(Composition)
-------------------------------------------------------------------------
+_____________________________________________________________________
 
 
 一連のflatMapがどのように一緒に動作するかという規則が、モナドのコンポジション法則です。
 
-::
 
-  M3.  m flatMap g flatMap f ≡ m flatMap {x => g(x) flatMap f} // or equivalently
-  M3a. m flatMap {x => g(x)} flatMap {y => f(y)} ≡ m flatMap {x => g(x) flatMap {y => f(y) }}
+-  M3.  m flatMap g flatMap f ≡ m flatMap {x => g(x) flatMap f} // or equivalently
+-  M3a. m flatMap {x => g(x)} flatMap {y => f(y)} ≡ m flatMap {x => g(x) flatMap {y => f(y) }}
 
 
 これはモナド則の中で最も複雑であり、理解するには時間がかかります。
@@ -327,22 +297,21 @@ for表記法では、
 
 「for」記法で表現されたコンポジション法則を見ると恐ろしくなるかもしれないので、飛ばすことをお勧めします。
 
-::
 
-  M3b. for (a <- m;b <- g(a);result <- f(b)) yield result ≡ for(a <- m; result <- for(b < g(a); temp <- f(b)) yield temp) yield result
+-  M3b. for (a <- m;b <- g(a);result <- f(b)) yield result ≡ for(a <- m; result <- for(b < g(a); temp <- f(b)) yield temp) yield result
 
 
 モナドのコンポジション則から、ファンクターのコンポジション則の導出が可能です。モナドのコンポジション則を破ると言うことは、(より単純な)ファンクターのコンポジション則をも破ることを意味します。証明は、いくつかのモナド則を利用して行いますので、気が弱い人は見なくても構いません。
 
 
-::
 
-  m map g map f ≡ m map g map f // I'm pretty sure
-  m map g map f ≡ m flatMap {x => unit(g(x))} flatMap {y => unit(f(y))} // by FM1, twice
-  m map g map f ≡ m flatMap {x => unit(g(x)) flatMap {y => unit(f(y))}} // by M3a
-  m map g map f ≡ m flatMap {x => unit(g(x)) map {y => f(y)}} // by FM1a
-  m map g map f ≡ m flatMap {x => unit(f(g(x))} // by M2c
-  F2. m map g map f ≡ m map {x => f(g(x))} // by FM1a
+1.  m map g map f ≡ m map g map f // I'm pretty sure
+2.  m map g map f ≡ m flatMap {x => unit(g(x))} flatMap {y => unit(f(y))} // by FM1, twice
+3.  m map g map f ≡ m flatMap {x => unit(g(x)) flatMap {y => unit(f(y))}} // by M3a
+4.  m map g map f ≡ m flatMap {x => unit(g(x)) map {y => f(y)}} // by FM1a
+5.  m map g map f ≡ m flatMap {x => unit(f(g(x))} // by M2c
+6.  F2. m map g map f ≡ m map {x => f(g(x))} // by FM1a
+
 
 完全な敗者はない
 ------------------------------------------------------------------------
@@ -361,31 +330,25 @@ _____________________________________________________________________
 
 もしmzeroがモナド的なゼロならば、あらゆる関数fについて次のことが成り立ちます。
 
-::
 
-  MZ1. mzero flatMap f ≡ mzero
+-  MZ1. mzero flatMap f ≡ mzero
 
-
-Translated into Texan: if it is not  nothing to start with then it is not gonna be nothing after neither.
 
 テキサスなまりに変換しましょう。 もし、何もないところから始まったら、その後に続くものもまた何もないでしょう。
 
 この法則はほかのゼロの法則を導出します。
 
-::
 
-  mzero map f ≡ mzero map f // identity
-  mzero map f ≡ mzero flatMap {x => unit(f(x)) // by FM1
-  MZ1b. mzero map f ≡ mzero // by MZ1
+1.  mzero map f ≡ mzero map f // identity
+2.  mzero map f ≡ mzero flatMap {x => unit(f(x)) // by FM1
+3.  MZ1b. mzero map f ≡ mzero // by MZ1
 
 
 ゆえにゼロにどんな関数をmapしても結果はゼロになります。
 これにより、ゼロは、unit(null)や空のように見える他の構造とは、明確に異なるということが明らかになります。なぜこのような事が言えるのか、見てみましょう。
 
 
-::
-
-  unit(null) map {x => "Nope, not empty enough to be a zero"} ≡ unit("Nope, not empty enough to be a zero")
+-  unit(null) map {x => "Nope, not empty enough to be a zero"} ≡ unit("Nope, not empty enough to be a zero")
 
 
 
@@ -395,9 +358,8 @@ _____________________________________________________________________
 
 第一のゼロの同一性の法則を逆転させると、次のように見えます。
 
-::
 
-  MZ2. m flatMap {x => mzero} ≡ mzero
+-  MZ2. m flatMap {x => mzero} ≡ mzero
 
 うーん、たしかに、全てをゼロに置き換えたものはゼロになる、と言っています。この法則は、ゼロに対する「flatten」がどのように働くかの直感をきちんと表現しただけです。
 
@@ -418,10 +380,8 @@ _____________________________________________________________________
 加算(Plus)は以下2つの法則に従います。その意味するところは、ゼロには何を加算(Plus)してもそのまま変わらない、ということです。
 
 
-::
-
-  MZ3. mzero plus m ≡ m
-  MZ4. m plus mzero ≡ m
+-  MZ3. mzero plus m ≡ m
+-  MZ4. m plus mzero ≡ m
 
 
 加算法則は、「m plus n」の双方がゼロである場合については何も述べていません。どのようになるかは、モナドによって全く異なります。典型的には、Plusが(リストのように)連結を意味するなら加算を意味します。さもなければ、(Optionのように)ゼロではない最初の値を返す「or」のような振る舞いをします。
@@ -446,28 +406,24 @@ The filter method is completely described in one simple law
 
 filterメソッドは、単純な1つの法則で完全に記述できます。
 
-::
-
-  FIL1. m filter p ≡ m flatMap {x => if(p(x)) unit(x) else mzero}
+-  FIL1. m filter p ≡ m flatMap {x => if(p(x)) unit(x) else mzero}
 
 xを引数にとり、述語関数pをxに適用した結果に応じてunit(x)かmzeroを返す無名関数を用意します。この無名関数を利用してflatMapを行います。ここから以下のような結果を導き出すことが
 
 
-::
 
-  m filter {x => true} ≡ m filter {x => true} // identity
-  m filter {x => true} ≡ m flatMap {x => if (true) unit(x) else mzero} // by FIL1
-  m filter {x => true} ≡ m flatMap {x => unit(x)} // by definition of if
-  FIL1a. m filter {x => true} ≡ m // by M1
+1.  m filter {x => true} ≡ m filter {x => true} // identity
+2.  m filter {x => true} ≡ m flatMap {x => if (true) unit(x) else mzero} // by FIL1
+3.  m filter {x => true} ≡ m flatMap {x => unit(x)} // by definition of if
+4.  FIL1a. m filter {x => true} ≡ m // by M1
 
 よって、定数「true」でフィルターを行うと、同じオブジェクトになります。反対に、
 
-::
 
-  m filter {x => false} ≡ m filter {x => false} // identity
-  m filter {x => false} ≡ m flatMap {x => if (false) unit(x) else mzero} // by FIL1
-  m filter {x => false} ≡ m flatMap {x => mzero} // by definition of if
-  FIL1b. m filter {x => false} ≡ mzero // by MZ1
+1.  m filter {x => false} ≡ m filter {x => false} // identity
+2.  m filter {x => false} ≡ m flatMap {x => if (false) unit(x) else mzero} // by FIL1
+3.  m filter {x => false} ≡ m flatMap {x => mzero} // by definition of if
+4.  FIL1b. m filter {x => false} ≡ mzero // by MZ1
 
 定数「false」でフィルタリングするとモナド的なゼロになります。
 
@@ -475,13 +431,10 @@ xを引数にとり、述語関数pをxに適用した結果に応じてunit(x)�
 副作用(Sied Effects)
 ------------------------------------------------------------------------
 
-Throughout this article I've implicitly assumed no side effects. Let's revisit our second functor law
 
 この記事では、副作用がないことを暗黙の前提としてきました。2つめのファンクターの法則をもう一度見てみましょう。
 
-::
-
-  m map g map f ≡ m map {x => (f(g(x)) }
+-  m map g map f ≡ m map {x => (f(g(x)) }
 
 もしmがいくつかの要素でなるリストなら、左辺と右辺では関数fと関数gが呼び出される順番が異なるでしょう。左辺では、関数gが全ての要素に適用されてから、各要素に関数fが呼び出されます。右辺では、 関数fと関数gは交互に呼び出されるでしょう。もし関数fやgがIO操作を行ったり、他の変数の状態を変更するような副作用を持っているとしたら、誰かがある式を「リファクタリング」して他の式に置き換えてしまったときに、システムは異なる振る舞いをするようになることが予想されます。
 
@@ -490,14 +443,10 @@ Throughout this article I've implicitly assumed no side effects. Let's revisit o
 
 そういえば、foreachの法則はどこにあるんでしょう？えーと、foreachという何も返さないものがあったときに、この表記法で説明できるたったひとつの本当のルールは、
 
-::
-
-  m foreach f ≡ ()
+-  m foreach f ≡ ()
 
 foreachが何もしないいうことを暗示しています。純粋に関数的な意味ではこれは真実であり、モナドmを関数fによってvoidの結果[#void]_ に変換します。
 
-
-Which would imply that foreach does nothing. In a purely functional sense that's true, it converts m and f into a void result. But foreach is meant to be used for side effects - it's an imperative construct.
 
 これはforeachが何もしないということを暗示しています。しかしforeachは副作用のために使われるということを意味しています、これは命令的な構造です。
 

@@ -61,7 +61,7 @@ A Little "For"(もう少し「for」を)
   assert (qs == List (1*4, 1*5, 2*4, 2*5))
 
 この「for」は「"for [each] n [in] ns [and each] o [in] os yield n * o」と読み替えられます。
-この「for」の形はネストしたループにも見えますが、どちらかというとmapとflatMapです。
+「for」の形はネストしたループにも見えますが、どちらかというとmapとflatMapです。
 
 .. code-block:: scala
 
@@ -72,13 +72,16 @@ A Little "For"(もう少し「for」を)
 なぜこれが動作するのか理解するために時間を費やすことはムダではありません。
 どのように計算されるか見てみましょう(イタリック体の赤字が太字の緑字に変換されます)。
 
-.. TODO 色付ける
+.. container:: custom
 
-::
+  1. val qs = ns flatMap {n =>
+     *os     map {o => n * o }*}
 
-  val qs = ns flatMap {n => os map {o => n * o }}
-  val qs = ns flatMap {n => List(n * 4, n * 5)}
-  val qs = List(1 * 4, 1 * 5, 2 * 4, 2 * 5
+  2. val qs = *ns flatMap {n =>*
+     **List(n * 4, n * 5)** *}*
+
+  3. val qs =
+     **List(1 * 4, 1 * 5, 2 * 4, 2 * 5)**
 
 
 「さらに式を増やしてみる」
@@ -121,24 +124,22 @@ A Little "For"(もう少し「for」を)
 
 このルールはmapを使う式が1つだけになるまで繰り返し適用されます。以下は、コンパイラがどのように"val qs = for..."という式を展開するかを示したものです(先ほどと同様に、赤字斜体が太字の緑に変換されます)。
 
-.. TODO 色付ける
+.. container:: custom
 
-::
+  1.  val qs = *for (n <- ns;* o <- os; p <- ps)
+             yield n * o * p
 
-  val qs = for (n <- ns; o <- os; p <- ps)
-           yield n * o * p
+  2.  val qs = **ns flatMap {n =>**
+             *for(o <- os;* p <- ps)
+             yield n * o * p}
 
-  val qs = ns flatMap {n =>
-           for(o <- os; p <- ps)
-           yield n * o * p}
+  3.  val qs = ns flatMap {n =>
+             **os flatMap {o =>**
+             *for(p <- ps) yield n * o * p}* **}**
 
-  val qs = ns flatMap {n =>
-           os flatMap {o =>
-           for(p <- ps) yield n * o * p}}
-
-  val qs = ns flatMap {n =>
-           os flatMap {o =>
-          {ps map {p => n * o * p}}}
+  4.  val qs = ns flatMap {n =>
+             os flatMap {o =>
+             **{ps map {p => n * o * p}}}**
 
 
 
@@ -162,7 +163,6 @@ A Little "For"(もう少し「for」を)
   ns foreach {n =>
   os foreach {o => println(n * o) }}
 
-Now, you don't have to implement foreach if you don't want to use the imperative form of "for", but foreach is trivial to implement since we already have map.
 
 さて、もし命令形の「for」を使うつもりがなければ、モナドにforeachを実装する必要はありません。ですが、既にmapがあるのでforeachは簡単に実装できます。
 
@@ -173,9 +173,14 @@ Now, you don't have to implement foreach if you don't want to use the imperative
      def flatMap[B](f: A => M[B]) : M[B] = ...
      def foreach[B](f: A => B) : Unit = {
          map(f)
-         ()  // Scalaでは()はUnit型を表す。ここでは明示的に()を返しているが、この行は無くてもよい
+         ()  //※
      }
   }
+
+
+.. note::
+
+  ※ Scalaでは()はUnit型を表す。ここでは明示的に()を返しているが、この行は無くてもよい
 
 foreachは、単にmapを呼び出した結果を返さずに捨ててしまっているだけだと言えます。この方法は、最適な実行効率を実現する方法ではないかもしれません。ですので、Scalaでは独自の方法でforeachを実装できるようになっています。
 
@@ -244,7 +249,6 @@ filterは定義してもよいモナドもありますがそうでないもの�
 パート4では、コレクションでないモナドや抽象的な手段においてのみコンテナであるようなモナドを紹介します。
 その前に、すべてのモナドが満たすべきいくつかの特性、モナド則をパート3で解説する必要があります。
 
-In the mean time, here's a cheat sheet showing how Haskell's do and Scala's for are related.
 
 話は変わりますが、ここでHaskellのdoとScalaのforがどのように関連しているかを示すチートシートを載せておきます。
 

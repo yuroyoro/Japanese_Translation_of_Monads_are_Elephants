@@ -21,7 +21,8 @@ Monads are Elephants:
 いくつかの訳文は、以下の翻訳を参考にさせてもらいました。
 
   「モナドは象だ」の翻訳まとめ - Fight the Future じゅくのblog
-  http://d.hatena.ne.jp/jyukutyo/20081111/1226392144
+
+    http://d.hatena.ne.jp/jyukutyo/20081111/1226392144
 
 
 Contents:
