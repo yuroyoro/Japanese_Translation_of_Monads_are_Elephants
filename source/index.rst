@@ -34,6 +34,7 @@ Contents:
    part2-ja.rst
    part3-ja.rst
    part4-ja.rst
+   monad_raw.rst
 
 Indices and tables
 ==================
